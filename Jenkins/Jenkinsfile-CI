@@ -1,0 +1,143 @@
+pipeline{
+    agent {label 'jenkins-agent'}
+     environment {
+        IMAGE = "manodayahire/wordtopdf"
+        VERSION = "${BUILD_NUMBER}"
+    }
+    
+    
+    stages{
+        // GIT CODE CLONE
+        stage("Code Clone"){
+            steps{
+                git url: "https://github.com/MAHIRE-7/wordtopdf.git", branch: "main"
+            }
+        }
+/**
+        // OWASP CVE check
+        stage("OWASP Dependency Scan") {
+    steps {
+        catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
+            sh '''
+              mkdir -p owasp-report
+
+              /opt/dependency-check/bin/dependency-check.sh \
+              --scan . \
+              --format HTML \
+              --out owasp-report \
+              --data /tmp/odc-data \
+              --noupdate \
+              --disableAssembly
+            '''
+        }
+    }
+}
+
+
+
+
+        
+        //OWASP Report generation
+            stage("OWASP Report") {
+                steps {
+                    archiveArtifacts artifacts: 'owasp-report/dependency-check-report.html', fingerprint: true
+                }
+            }
+
+**/
+
+        //SonarQube Scan
+         stage("SonarQube Scan") {
+            steps {
+                withSonarQubeEnv('sonarqube') {
+                sh "sonar-scanner -Dsonar.projectKey=wordtopdf -Dsonar.sources=."
+                                            }
+            }
+        }
+        // SonarQube QualityGates Scan
+        stage("Quality Gate") {
+            steps {
+                timeout(time: 2, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        //Docker Build
+        stage("Docker Build"){
+            steps{
+                sh "docker build -t $IMAGE:$VERSION ."
+            }
+        }
+
+        stage("Trivy Image Scan"){
+            steps {
+        sh """
+                        trivy image \
+                --format template \
+                --template "@html.tpl" \
+                --output trivy-report.html \
+                manodayahire/wordtopdf:33 || true
+
+        """
+        /**
+         sh """
+          trivy image \
+          --exit-code 1 \
+          --severity HIGH,CRITICAL \
+          manodayahire/wordtopdf:${BUILD_NUMBER}
+        """
+        //HIGH/CRITICAL mile → pipeline FAIL block on HIGH/CRITICAL
+        **/
+
+                  }
+        }
+
+        // Docker Image Push to Dockerhub
+        stage("Docker Push"){
+            steps{
+                withCredentials([usernamePassword(credentialsId: 'dockerCredentials', 
+                                                 usernameVariable: 'USER', 
+                                                 passwordVariable: 'PASS')]){
+                sh "docker login -u ${USER} -p ${PASS} "
+                sh "docker push $IMAGE:$VERSION"
+                                                 }
+            }
+        }
+
+        // Docker Image cleanup from local
+        stage("Image Cleanup"){
+            steps{
+                 sh '''
+                    echo "Latest version: $VERSION"
+
+                    DEL_VERSION=$((VERSION-2))
+
+                    if [ "$DEL_VERSION" -gt 0 ]; then
+                        echo "Deleting image tag: $DEL_VERSION"
+                        docker rmi $IMAGE:$DEL_VERSION || true
+                    else
+                        echo "No old image to delete"
+                    fi
+                    '''
+            }
+        }
+        stage("Trigger CD") {
+    steps {
+        build job: 'CD-Job',
+              parameters: [
+                string(name: 'IMAGE_TAG', value: "${BUILD_NUMBER}")
+              ]
+    }
+}
+
+
+        
+        }
+
+        post {
+    always {
+        archiveArtifacts artifacts: 'trivy-report.html'
+    }
+}
+    }

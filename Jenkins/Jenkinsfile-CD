@@ -1,0 +1,53 @@
+pipeline{
+    agent {label 'jenkins-agent'}
+    parameters {
+    string(name: 'IMAGE_TAG', description: 'Image tag from CI')
+  }
+    stages{
+        stage("Clone Repo") {
+            steps {
+                git branch: 'release',
+                    url: 'https://github.com/MAHIRE-7/wordtopdf.git'
+            }
+        }
+         // K8s Tag Update
+        stage("K8S Tag Update"){
+            steps{
+            withCredentials([usernamePassword(credentialsId: 'gitCredentials', 
+                                                 usernameVariable: 'GIT_USER', 
+                                                 passwordVariable: 'GIT_PASS')]){
+                                                     sh""" 
+                                                      echo "Updating Kubernetes manifest with new image tag"
+                                                        
+            git checkout release
+            sed -i 's|image: .*|image: manodayahire/wordtopdf:${IMAGE_TAG}|' k8s/app-deployment.yml
+
+            git config user.email "manodayahire786@gmail.com"
+            git config user.name "Manoday Ahire"
+
+            git add k8s/app-deployment.yml
+            git commit -m  "K8s Image Tag Updated With manodayahire/wordtopdf:$IMAGE_TAG "
+
+            git push https://${GIT_USER}:${GIT_PASS}@github.com/MAHIRE-7/wordtopdf HEAD:release
+                                                     """
+                                                 }
+            }
+        }
+
+        stage("Deploy on ArgoCD") {
+            steps {
+                sh "echo Deploying image tag ${IMAGE_TAG}"
+            }
+            }
+
+        stage("Monitoring"){
+            steps{
+                sh '''
+                echo "Open Grafana Monitoring setup done"
+
+                '''
+            }
+        }
+
+    }
+}
