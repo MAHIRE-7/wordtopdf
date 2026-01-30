@@ -1,6 +1,6 @@
 # CICD-4 Installation Guide
 
-![Architecture Diagram](./architecture-diagram.png)
+![Architecture Diagram](./arc.jpg)
 
 Complete setup guide for Kubernetes-based CI/CD pipeline with monitoring and security tools.
 
