@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: word-pdf-converter-app
-        image: manodayahire/wordtopdf:10
+        image: manodayahire/wordtopdf:12
         
         ports:
         - containerPort: 5000
