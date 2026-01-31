@@ -13,38 +13,34 @@ pipeline{
                 git url: "https://github.com/MAHIRE-7/wordtopdf.git", branch: "main"
             }
         }
-/**
-        // OWASP CVE check
+        /**
+                // OWASP CVE check
         stage("OWASP Dependency Scan") {
-    steps {
-        catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
-            sh '''
-              mkdir -p owasp-report
+            steps {
+                catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
+                    sh '''
+                    mkdir -p owasp-report
 
-              /opt/dependency-check/bin/dependency-check.sh \
-              --scan . \
-              --format HTML \
-              --out owasp-report \
-              --data /tmp/odc-data \
-              --noupdate \
-              --disableAssembly
-            '''
-        }
-    }
-}
-
-
-
-
-        
-        //OWASP Report generation
-            stage("OWASP Report") {
-                steps {
-                    archiveArtifacts artifacts: 'owasp-report/dependency-check-report.html', fingerprint: true
+                    /opt/dependency-check/bin/dependency-check.sh \
+                    --scan . \
+                    --format HTML \
+                    --out owasp-report \
+                    --data /tmp/odc-data \
+                    --noupdate \
+                    --disableAssembly
+                    '''
                 }
             }
+        }
+        
+                //OWASP Report generation
+        stage("OWASP Report") {
+            steps {
+                archiveArtifacts artifacts: 'owasp-report/dependency-check-report.html', fingerprint: true
+                    }
+                }
 
-**/
+        **/
 
         //SonarQube Scan
          stage("SonarQube Scan") {
@@ -72,25 +68,25 @@ pipeline{
 
         stage("Trivy Image Scan"){
             steps {
-        sh """
+                sh """
                         trivy image \
                 --format template \
                 --template "@html.tpl" \
                 --output trivy-report.html \
                 manodayahire/wordtopdf:33 || true
 
-        """
-        /**
-         sh """
-          trivy image \
-          --exit-code 1 \
-          --severity HIGH,CRITICAL \
-          manodayahire/wordtopdf:${BUILD_NUMBER}
-        """
-        //HIGH/CRITICAL mile → pipeline FAIL block on HIGH/CRITICAL
-        **/
+                """
+                /**
+                sh """
+                trivy image \
+                --exit-code 1 \
+                --severity HIGH,CRITICAL \
+                manodayahire/wordtopdf:${BUILD_NUMBER}
+                """
+                //HIGH/CRITICAL mile → pipeline FAIL block on HIGH/CRITICAL
+                **/
 
-                  }
+                }
         }
 
         // Docker Image Push to Dockerhub
@@ -101,7 +97,7 @@ pipeline{
                                                  passwordVariable: 'PASS')]){
                 sh "docker login -u ${USER} -p ${PASS} "
                 sh "docker push $IMAGE:$VERSION"
-                                                 }
+                    }
             }
         }
 
@@ -123,21 +119,19 @@ pipeline{
             }
         }
         stage("Trigger CD") {
-    steps {
-        build job: 'CD-Job',
-              parameters: [
-                string(name: 'IMAGE_TAG', value: "${BUILD_NUMBER}")
-              ]
-    }
-}
+            steps {
+                build job: 'CD-Job',
+                    parameters: [
+                        string(name: 'IMAGE_TAG', value: "${BUILD_NUMBER}")
+                    ]
+            }
+                            }
 
-
-        
         }
 
         post {
-    always {
-        archiveArtifacts artifacts: 'trivy-report.html'
-    }
-}
+            always {
+                archiveArtifacts artifacts: 'trivy-report.html'
+                }
+         }   
     }
